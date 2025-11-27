@@ -10,14 +10,17 @@ from app.services.bedrock import get_bedrock_llm
 @tool
 def generate_sql_query(question: str) -> str:
     """
-    자연어 질문을 SQL 쿼리로 변환합니다.
+    자연어 질문을 SQL 쿼리로 변환하고 더미 데이터에서 실행합니다.
     
     Args:
         question: 사용자의 자연어 질문
         
     Returns:
-        생성된 SQL 쿼리
+        SQL 쿼리와 실행 결과
     """
+    from app.langgraph.dummy_data import execute_dummy_sql, format_sql_result
+    import re
+    
     llm = get_bedrock_llm()
     
     schema = """
@@ -26,6 +29,8 @@ def generate_sql_query(question: str) -> str:
         email VARCHAR(255),
         created_at DATETIME
     );
+    
+    현재 더미 데이터: 10명의 사용자 (2024년 10월~11월 가입)
     """
     
     prompt = f"""당신은 SQL 전문가입니다. 자연어 질문을 SQL 쿼리로 변환하세요.
@@ -38,11 +43,11 @@ def generate_sql_query(question: str) -> str:
 지시사항:
 1. 스키마를 기반으로 유효한 SQL 쿼리를 생성하세요
 2. 올바른 SQL 문법을 사용하세요
-3. SQL 쿼리만 출력하세요
+3. SQL 쿼리를 명확하게 표시하세요 (```sql 코드 블록 사용)
 
 **반드시 한국어로 설명과 함께 응답하세요.**
 
-SQL 쿼리:"""
+응답:"""
     
     response = llm.invoke(prompt)
     sql_output = response.content
@@ -50,7 +55,30 @@ SQL 쿼리:"""
     if isinstance(sql_output, list):
         sql_output = sql_output[0].text if hasattr(sql_output[0], 'text') else str(sql_output[0])
     
-    return sql_output
+    # SQL 쿼리 추출
+    sql_query = ""
+    sql_match = re.search(r'```sql\s*(.*?)\s*```', sql_output, re.DOTALL | re.IGNORECASE)
+    if sql_match:
+        sql_query = sql_match.group(1).strip()
+    else:
+        # SELECT 문 찾기
+        select_match = re.search(r'(SELECT.*?;)', sql_output, re.DOTALL | re.IGNORECASE)
+        if select_match:
+            sql_query = select_match.group(1).strip()
+    
+    # SQL 실행
+    result_text = ""
+    if sql_query:
+        try:
+            result = execute_dummy_sql(sql_query)
+            result_text = format_sql_result(result)
+        except Exception as e:
+            result_text = f"SQL 실행 오류: {str(e)}"
+    
+    # 최종 응답
+    final_output = f"{sql_output}\n\n### 실행 결과:\n{result_text}"
+    
+    return final_output
 
 
 # Research 도구 정의
