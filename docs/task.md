@@ -1,29 +1,21 @@
-# LangGraph Planner-Supervisor Agentic AI 구축
+# LangGraph Supervisor 라이브러리로 재구현
 
 ## 목표
-LangGraph를 사용하여 planner 기반 supervisor 아키텍처를 구현한 Agentic AI 시스템 구축
+공식 `langgraph-supervisor` 라이브러리를 사용하여 더 간단하고 표준화된 방식으로 재구현
 
 ## 작업 항목
 
-### 분석 및 계획
-- [x] 기존 코드 구조 분석
-- [x] Planner-Supervisor 아키텍처 설계
-- [x] 필요한 에이전트 및 도구 정의
+### 준비
+- [x] langgraph-supervisor 라이브러리 설치
+- [x] 기존 구현 백업
 
-### 구현
-- [x] State 스키마 정의 (`state.py`)
-- [x] Worker 에이전트 구현
-  - [x] SQL Agent (`agents/workers/sql_agent.py`)
-  - [x] Research Agent (`agents/workers/research_agent.py`)
-  - [x] Analysis Agent (`agents/workers/analysis_agent.py`)
-- [x] Planner 에이전트 구현 (`agents/planner.py`)
-- [x] Supervisor 에이전트 구현 (`agents/supervisor.py`)
-- [x] 그래프 재구성 (`graph.py`)
-- [x] FastAPI 엔드포인트 추가 (`main.py`)
-- [x] 도구 정의 (`tools.py`)
+### 재구현
+- [x] Worker 에이전트를 create_react_agent로 변환
+- [x] create_supervisor로 supervisor 생성
+- [x] FastAPI 엔드포인트 업데이트
+- [x] 기존 복잡한 코드 제거
 
 ### 검증
-- [x] 단위 테스트 작성
-- [x] 통합 테스트 실행
-- [x] 수동 검증
-- [x] 문서화
+- [x] 서버 실행 테스트
+- [x] API 엔드포인트 테스트
+- [x] 문서 업데이트

@@ -1,174 +1,149 @@
-# LangGraph Planner-Supervisor Agentic AI 구현 계획
+# LangGraph Supervisor 라이브러리 마이그레이션 계획
 
 ## 개요
 
-현재 프로젝트에는 간단한 text-to-sql 변환 기능이 있습니다. 이를 LangGraph의 **Planner 기반 Supervisor 아키텍처**로 확장하여, 복잡한 작업을 계획하고 여러 전문화된 에이전트를 조율하는 시스템을 구축합니다.
+현재 직접 구현한 Planner-Supervisor 아키텍처를 공식 `langgraph-supervisor` 라이브러리로 마이그레이션합니다. 이를 통해 코드를 대폭 간소화하고 공식 지원을 받을 수 있습니다.
 
-### 아키텍처 개념
+## 현재 구현 vs langgraph-supervisor
 
-```mermaid
-graph TD
-    A[User Input] --> B[Planner Agent]
-    B --> C[Supervisor Agent]
-    C --> D[Research Agent]
-    C --> E[SQL Agent]
-    C --> F[Analysis Agent]
-    D --> C
-    E --> C
-    F --> C
-    C --> G[Final Response]
-```
+### 현재 구현 (직접 구현)
+- ❌ 복잡한 StateGraph 수동 구성
+- ❌ 수동 라우팅 로직
+- ❌ 많은 보일러플레이트 코드
+- ✅ 완전한 제어
 
-**핵심 구성 요소:**
-- **Planner**: 사용자 요청을 분석하고 다단계 실행 계획 생성
-- **Supervisor**: 계획을 바탕으로 적절한 worker 에이전트에게 작업 위임 및 조율
-- **Worker Agents**: 특정 작업을 수행하는 전문화된 에이전트들
-  - Research Agent: 정보 검색 및 조사
-  - SQL Agent: 데이터베이스 쿼리 생성 및 실행
-  - Analysis Agent: 데이터 분석 및 인사이트 도출
+### langgraph-supervisor 사용
+- ✅ `create_supervisor()` 한 줄로 구현
+- ✅ Tool-based handoff 자동 처리
+- ✅ 공식 지원 및 업데이트
+- ✅ 간단한 코드
 
 ## Proposed Changes
 
-### Core Components
+### Dependencies
 
-#### [NEW] [state.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/state.py)
+#### [MODIFY] [pyproject.toml](file:///Users/playauto/Documents/GitHub/python-fastapi/pyproject.toml)
 
-전체 시스템의 상태를 관리하는 TypedDict 정의:
-- `messages`: 대화 히스토리
-- `plan`: Planner가 생성한 실행 계획
-- `current_step`: 현재 실행 중인 단계
-- `agent_outputs`: 각 에이전트의 출력 결과
-- `final_answer`: 최종 응답
-
-#### [NEW] [agents/planner.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/planner.py)
-
-사용자 요청을 분석하고 실행 계획을 생성하는 Planner 에이전트:
-- 요청 분석 및 필요한 단계 식별
-- 구조화된 계획 생성 (JSON 형식)
-- 각 단계에 적절한 에이전트 할당
-
-#### [NEW] [agents/supervisor.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/supervisor.py)
-
-계획을 실행하고 worker 에이전트를 조율하는 Supervisor:
-- 계획의 각 단계를 순차적으로 실행
-- 적절한 worker 에이전트 선택 및 호출
-- 에이전트 간 정보 전달 및 상태 업데이트
-- 에러 처리 및 재시도 로직
-
-#### [NEW] [agents/workers/research_agent.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/workers/research_agent.py)
-
-정보 검색 및 조사를 수행하는 에이전트:
-- 주어진 주제에 대한 정보 수집
-- 컨텍스트 분석 및 요약
-
-#### [NEW] [agents/workers/sql_agent.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/workers/sql_agent.py)
-
-기존 SQL 생성 로직을 에이전트로 리팩토링:
-- 자연어를 SQL로 변환
-- SQL 검증 및 최적화
-- 쿼리 실행 (선택적)
-
-#### [NEW] [agents/workers/analysis_agent.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/workers/analysis_agent.py)
-
-데이터 분석 및 인사이트 도출 에이전트:
-- 데이터 패턴 분석
-- 통계적 요약 생성
-- 인사이트 및 권장사항 제공
+`langgraph-supervisor` 라이브러리 추가:
+```toml
+dependencies = [
+    "langgraph-supervisor>=0.0.31",
+    ...
+]
+```
 
 ---
 
-#### [MODIFY] [graph.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/graph.py)
+### Core Implementation
 
-기존 단순 그래프를 planner-supervisor 아키텍처로 재구성:
-- 새로운 State 스키마 적용
-- Planner, Supervisor, Worker 노드 추가
-- 조건부 엣지를 사용한 동적 라우팅
-- 계획 실행 완료 조건 정의
+#### [NEW] [agents/workers.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/workers.py)
+
+기존 3개 에이전트를 `create_react_agent`로 재구현:
+- SQL Agent: SQL 쿼리 생성 도구 포함
+- Research Agent: 정보 수집 도구 포함  
+- Analysis Agent: 데이터 분석 도구 포함
+
+각 에이전트는 간단한 도구 함수로 정의되고 `create_react_agent`로 생성됩니다.
+
+#### [NEW] [supervisor_graph.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/supervisor_graph.py)
+
+`create_supervisor`를 사용한 간단한 구현:
+```python
+from langgraph_supervisor import create_supervisor
+
+workflow = create_supervisor(
+    [sql_agent, research_agent, analysis_agent],
+    model=model,
+    prompt="한국어로 응답하는 팀 슈퍼바이저...",
+    output_mode="last_message"
+)
+```
 
 #### [MODIFY] [main.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/main.py)
 
-새로운 엔드포인트 추가 및 기존 엔드포인트 업데이트:
-- `/agentic-query`: Planner-Supervisor 시스템을 사용하는 새 엔드포인트
-- `/text-to-sql`: 기존 엔드포인트 유지 (하위 호환성)
-- 스트리밍 응답 지원 (선택적)
+새로운 supervisor 그래프 사용:
+- 기존 `/agentic-query` 엔드포인트 유지
+- 새로운 supervisor 그래프로 교체
+- 응답 형식 간소화
 
 ---
 
-### Supporting Files
+### Cleanup
 
-#### [NEW] [agents/__init__.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/__init__.py)
+#### [DELETE] 기존 복잡한 파일들
 
-에이전트 모듈 초기화 파일
+다음 파일들은 더 이상 필요하지 않음:
+- `app/langgraph/state.py` - langgraph-supervisor가 자동 처리
+- `app/langgraph/agents/planner.py` - supervisor가 자동으로 라우팅
+- `app/langgraph/agents/supervisor.py` - create_supervisor로 대체
+- `app/langgraph/agents/workers/sql_agent.py` - workers.py로 통합
+- `app/langgraph/agents/workers/research_agent.py` - workers.py로 통합
+- `app/langgraph/agents/workers/analysis_agent.py` - workers.py로 통합
+- `app/langgraph/graph.py` - supervisor_graph.py로 대체
 
-#### [NEW] [agents/workers/__init__.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/agents/workers/__init__.py)
+---
 
-Worker 에이전트 모듈 초기화 파일
+## 코드 비교
 
-#### [NEW] [tools.py](file:///Users/playauto/Documents/GitHub/python-fastapi/app/langgraph/tools.py)
+### Before (직접 구현)
+```python
+# 복잡한 StateGraph 구성
+workflow = StateGraph(AgentState)
+workflow.add_node("planner", planner_node)
+workflow.add_node("supervisor", supervisor_node)
+workflow.add_node("sql_agent", sql_agent_node)
+# ... 많은 노드와 엣지 정의
+workflow.add_conditional_edges(...)
+# 총 ~300줄 이상
+```
 
-에이전트가 사용할 수 있는 도구 정의:
-- 웹 검색 도구 (선택적)
-- 데이터베이스 쿼리 실행 도구
-- 계산 도구
+### After (langgraph-supervisor)
+```python
+# 간단한 supervisor 생성
+workflow = create_supervisor(
+    [sql_agent, research_agent, analysis_agent],
+    model=model,
+    prompt="슈퍼바이저 프롬프트"
+)
+# 총 ~50줄
+```
 
 ## Verification Plan
 
-### Automated Tests
-
-#### 1. 단위 테스트
-새로운 테스트 파일 생성: `tests/test_agentic_system.py`
-
+### 1. 의존성 설치
 ```bash
-# 테스트 실행 명령어
-pytest tests/test_agentic_system.py -v
+uv sync
 ```
 
-테스트 항목:
-- Planner가 올바른 계획을 생성하는지 검증
-- Supervisor가 올바른 에이전트를 선택하는지 검증
-- 각 Worker 에이전트의 기본 기능 검증
-- State 업데이트가 올바르게 동작하는지 검증
-
-#### 2. 통합 테스트
-전체 그래프 실행 테스트:
-
+### 2. 서버 실행
 ```bash
-# 개발 서버 실행
 uvicorn app.main:app --reload --port 8000
+```
 
-# 별도 터미널에서 테스트 요청
+### 3. API 테스트
+```bash
 curl -X POST http://localhost:8000/agentic-query \
   -H "Content-Type: application/json" \
-  -d '{"question": "사용자 테이블에서 최근 7일간 가입한 사용자 수를 분석해줘"}'
+  -d '{"question": "저번달 가입자 알려줘"}'
 ```
 
-### Manual Verification
+**예상 결과:**
+- 한국어 응답
+- SQL 쿼리 생성
+- 간결한 최종 답변
 
-사용자가 직접 다양한 복잡도의 질문을 테스트:
-
-1. **간단한 SQL 쿼리 요청**
-   - 예: "모든 사용자의 이메일을 조회해줘"
-   - 예상: SQL Agent만 사용하여 빠르게 응답
-
-2. **분석이 필요한 복잡한 요청**
-   - 예: "지난 달 가입자 추이를 분석하고 인사이트를 제공해줘"
-   - 예상: SQL Agent + Analysis Agent 조합 사용
-
-3. **다단계 작업이 필요한 요청**
-   - 예: "사용자 데이터를 조회하고, 패턴을 분석한 후, 개선 방안을 제안해줘"
-   - 예상: 여러 에이전트가 순차적으로 협력
-
-각 테스트 후 응답에서 다음을 확인:
-- `plan`: 생성된 실행 계획이 합리적인지
-- `agent_outputs`: 각 에이전트의 출력이 올바른지
-- `final_answer`: 최종 답변이 질문에 적절한지
+### 4. 기능 검증
+- [ ] Supervisor가 올바른 에이전트 선택
+- [ ] 에이전트 간 정보 전달
+- [ ] 한국어 응답 생성
+- [ ] 에러 처리
 
 ## 구현 순서
 
-1. State 스키마 정의
-2. Worker 에이전트 구현 (기존 SQL 로직 활용)
-3. Planner 에이전트 구현
-4. Supervisor 에이전트 구현
-5. 그래프 재구성
-6. FastAPI 엔드포인트 추가
-7. 테스트 작성 및 검증
+1. ✅ 의존성 추가
+2. Worker 에이전트 재구현 (도구 기반)
+3. Supervisor 생성
+4. FastAPI 엔드포인트 업데이트
+5. 기존 파일 제거
+6. 테스트 및 검증
+7. 문서 업데이트
